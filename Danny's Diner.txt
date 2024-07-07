@@ -1,0 +1,147 @@
+1.	
+SELECT customer_id, SUM(price) 
+FROM dannys_diner.sales
+LEFT JOIN dannys_diner.menu
+ON sales.product_id = menu.product_id
+GROUP BY customer_id
+
+
+2.	
+SELECT customer_id, COUNT(DISTINCT order_date)
+FROM dannys_diner.sales
+GROUP BY customer_id
+
+
+
+3.	
+SELECT customer_id, order_date, product_name FROM (
+SELECT customer_id, 
+order_date,
+product_name,
+RANK() OVER(PARTITION BY customer_id ORDER BY order_date) as first_order
+FROM dannys_diner.sales
+LEFT JOIN dannys_diner.menu
+ON sales.product_id = menu.product_id
+) AS tbl
+WHERE tbl.first_order = 1
+
+
+4.	
+SELECT product_name, COUNT(sales.product_id)
+FROM dannys_diner.sales
+LEFT JOIN dannys_diner.menu
+ON sales.product_id = menu.product_id
+GROUP BY  product_name
+ORDER BY COUNT(sales.product_id) DESC
+LIMIT 1
+
+
+
+5.	
+SELECT customer_id, product_name, orders FROM(
+  SELECT customer_id, product_name, COUNT(sales.product_id) AS orders,
+RANK() OVER(PARTITION BY customer_id  ORDER BY COUNT(sales.product_id) desc) AS rnk
+FROM dannys_diner.sales
+LEFT JOIN dannys_diner.menu
+ON sales.product_id = menu.product_id
+GROUP BY customer_id, product_name
+ORDER BY COUNT(sales.product_id) DESC)AS tbl
+WHERE tbl.rnk = 1
+
+6.	
+SELECT customer_id, order_date, product_name 
+FROM (
+    SELECT 
+        sales.customer_id, 
+        sales.order_date, 
+        menu.product_name,
+        RANK() OVER(PARTITION BY sales.customer_id ORDER BY sales.order_date) AS first_order_rank
+    FROM 
+        dannys_diner.sales
+    LEFT JOIN 
+        dannys_diner.menu
+    ON 
+        sales.product_id = menu.product_id
+    LEFT JOIN 
+        dannys_diner.members
+    ON 
+        sales.customer_id = members.customer_id
+    WHERE 
+        sales.order_date >= members.join_date
+) AS tbl
+WHERE tbl.first_order_rank = 1;
+
+
+7.	Item purchased just before becoming a member.
+SELECT customer_id, order_date, product_name, first_order_rank
+FROM (
+    SELECT 
+        sales.customer_id, 
+        sales.order_date, 
+        menu.product_name,
+        RANK() OVER(PARTITION BY sales.customer_id ORDER BY sales.order_date DESC) AS first_order_rank
+    FROM 
+        dannys_diner.sales
+    LEFT JOIN 
+        dannys_diner.menu
+    ON 
+        sales.product_id = menu.product_id
+    LEFT JOIN 
+        dannys_diner.members
+    ON 
+        sales.customer_id = members.customer_id
+    WHERE 
+        sales.order_date < members.join_date
+) AS tbl
+WHERE tbl.first_order_rank = 1;
+
+8.	Total amount spent by each customer
+SELECT 
+sales.customer_id, 
+SUM(price) AS total
+FROM dannys_diner.sales
+LEFT JOIN dannys_diner.menu
+ON sales.product_id = menu.product_id
+LEFT JOIN dannys_diner.members
+ON sales.customer_id = members.customer_id
+WHERE sales.order_date <= members.join_date
+GROUP BY sales.customer_id 
+ORDER BY sales.customer_id
+
+
+9.	total points
+SELECT 
+    sales.customer_id,
+    SUM(
+        CASE
+            WHEN menu.product_name = 'sushi' THEN price * 10 * 2
+            ELSE price * 10
+        END
+    ) AS points
+FROM 
+    dannys_diner.sales
+LEFT JOIN 
+    dannys_diner.menu
+ON 
+    sales.product_id = menu.product_id
+GROUP BY 
+    sales.customer_id;
+
+
+
+10.	If members get 2x on all items
+SELECT sales.customer_id, 
+SUM( 
+  CASE WHEN order_date >= join_date AND order_date < join_date + 7
+  THEN price * 10 * 2
+             WHEN menu.product_name = 'sushi' THEN price * 10 * 2
+            ELSE price * 10
+        END) AS points
+
+FROM dannys_diner.sales
+LEFT JOIN dannys_diner.menu
+ON sales.product_id = menu.product_id
+INNER JOIN dannys_diner.members
+ON sales.customer_id = members.customer_id
+WHERE DATE_PART('month', order_date)= 1
+GROUP BY sales.customer_id;
